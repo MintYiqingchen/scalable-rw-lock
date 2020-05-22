@@ -15,8 +15,12 @@ IF(DEFINED MODEL_CHK_PATH)
 ENDIF()
 # baseline 2
 add_executable(simpleRwlock simpleRWLock.cpp)
+# scalable rwlock
+add_executable(snziRwlock snziRwlock.cpp)
 IF(DEFINED MODEL_CHK_PATH)
+    TARGET_LINK_LIBRARIES(snziRwlock model)
     TARGET_LINK_LIBRARIES(simpleRwlock "model")
 ELSE()
+    TARGET_LINK_LIBRARIES(snziRwlock pthread)
     TARGET_LINK_LIBRARIES(simpleRwlock pthread)
 ENDIF()

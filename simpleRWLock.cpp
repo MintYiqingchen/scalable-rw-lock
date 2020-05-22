@@ -27,10 +27,15 @@ public:
         _exclusive.store(false, std::memory_order_release);
     }
     void readLock() {
-        // reader-writer mutual exclusion
-        while(_exclusive.load(std::memory_order_acquire)) {}
-        // update reader
-        _nreader.fetch_add(1, std::memory_order_release);
+        while(1) {
+            // reader-writer mutual exclusion
+            while (_exclusive.load(std::memory_order_acquire)) {}
+            // update reader
+            _nreader.fetch_add(1, std::memory_order_release);
+            // reader-writer mutual exclusion
+            if (!_exclusive.load(std::memory_order_acquire)) break;
+            _nreader.fetch_sub(1, std::memory_order_release);
+        }
     }
     void readUnlock() {
         // update reader
@@ -87,7 +92,11 @@ int main(int argc, char** argv) {
     std::cout.precision(2);
     std::cout << wPerc << "%\n";
 
-    int interval = (int)(wPerc * 0.01 * ITERATION);
+    int interval;
+    if(wPerc == 0)
+        interval = ITERATION;
+    else
+        interval = ITERATION / (int)(wPerc * 0.01 * ITERATION);
     // std::cout << interval << std::endl;
     Ids.resize(threadNum);
     for(int i = 0; i < threadNum; ++ i) {Ids[i] = i + 1;}

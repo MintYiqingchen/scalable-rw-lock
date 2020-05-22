@@ -79,7 +79,11 @@ int main(int argc, char** argv) {
     std::cout.precision(2);
     std::cout << wPerc << "%\n";
 
-    int interval = (int)(wPerc * 0.01 * ITERATION);
+    int interval;
+    if(wPerc == 0)
+        interval = ITERATION;
+    else
+        interval = ITERATION / (int)(wPerc * 0.01 * ITERATION);
     // std::cout << interval << std::endl;
     Ids.resize(threadNum);
     for(int i = 0; i < threadNum; ++ i) {Ids[i] = i + 1;}
