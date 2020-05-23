@@ -3,12 +3,17 @@
 //
 #include <iostream>
 #include <chrono>
-#include <pthread.h>
 #include <vector>
 #include <atomic>
+#ifdef WITH_CDS
+#include <threads.h>
+constexpr int ITERATION = 10;
+#else
+#include <pthread.h>
+constexpr int ITERATION = 100000000;
+#endif
 #define CACHELINE 64
 #define DEPTH 3
-constexpr int ITERATION = 100000000;
 int a = 0, b = 0, interval = 10000;
 std::vector<int> Ids;
 
@@ -182,27 +187,30 @@ class SNZIRWLock {
     std::atomic<bool> _exclusive;
     SNZI snzi;
 public:
+    SNZIRWLock() {
+        _exclusive = false;
+    }
     void writeLock() {
         bool localEx = false;
         // writer-writer mutual exclusion
-        while(_exclusive.compare_exchange_weak(localEx, true,
-                                               std::memory_order_acq_rel, std::memory_order_relaxed)) {
+        while(_exclusive.compare_exchange_strong(localEx, true,
+                                                 std::memory_order_acq_rel)) {
             localEx = false;
         }
         // writer-reader mutual exclusion
         while(snzi.query()){}
     }
     void writeUnlock() {
-        _exclusive.store(false, std::memory_order_release);
+        _exclusive.store(false);
     }
     void readLock(int tid) {
         while(1) {
             // reader-writer mutual exclusion
-            while (_exclusive.load(std::memory_order_acquire)) {}
+            while (_exclusive.load()) {}
             // update reader
             snzi.arrive(tid);
             // reader-writer mutual exclusion
-            if (!_exclusive.load(std::memory_order_acquire)) break;
+            if (!_exclusive.load()) break;
             snzi.depart(tid);
         }
     }
@@ -211,9 +219,14 @@ public:
         snzi.depart(tid);
     }
 };
-SNZIRWLock rwLock;
+SNZIRWLock* rwLockptr;
 
+#ifdef WITH_CDS
+void worker(void* param) {
+#else
 void* worker(void* param) {
+#endif
+    SNZIRWLock& rwLock = *rwLockptr;
     int id = *(int*)param;
     for(int i = 0; i < ITERATION; ++ i) {
         if((i % interval) == 0){
@@ -236,6 +249,15 @@ void* worker(void* param) {
 
 void test(int threadN, int interval, double wPerc) {
     using namespace std::chrono;
+#ifdef WITH_CDS
+    std::vector<thrd_t> tid(threadN);
+    for(int j = 1; j <= threadN; ++ j){
+        thrd_create(&tid[j-1], worker, &Ids[j-1]);
+    }
+    for(int j = 1; j <= threadN; ++ j) {
+        thrd_join(tid[j-1]);
+    }
+#else
     std::vector<pthread_t> tid(threadN);
     for(int i = 1; i <= threadN; ++ i) {
         auto start = system_clock::now();
@@ -250,11 +272,19 @@ void test(int threadN, int interval, double wPerc) {
         auto thoughput = ITERATION / (duration.count() * 1.0) * i;
         std::cout << i <<"," << thoughput <<","<< wPerc << std::endl;
     }
+#endif
 }
+
+#ifdef WITH_CDS
+int user_main(int argc, char **argv){
+#else
 int main(int argc, char** argv) {
+#endif
     if(argc < 3) {
-        std::cout << "usage: ./pthreadRwlock [thread number] [write percent]" << std::endl;
+        std::cout << "usage: ./simpleRwlock [thread number] [write percent]" << std::endl;
+        exit(0);
     }
+    rwLockptr = new SNZIRWLock();
     int threadNum = atoi(argv[1]);
     double wPerc = atof(argv[2]);
     std::cout << "thread number: "<<threadNum << ", write percent: ";
@@ -263,7 +293,7 @@ int main(int argc, char** argv) {
 
     int interval;
     if(wPerc == 0)
-        interval = ITERATION;
+        interval = ITERATION + 1;
     else
         interval = ITERATION / (int)(wPerc * 0.01 * ITERATION);
     // std::cout << interval << std::endl;
