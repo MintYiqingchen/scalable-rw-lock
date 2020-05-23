@@ -7,8 +7,11 @@
 #include <atomic>
 #ifdef WITH_CDS
 #include <threads.h>
+#include <model-assert.h>
 constexpr int ITERATION = 10;
+
 #else
+#define MODEL_ASSERT(x) x
 #include <pthread.h>
 constexpr int ITERATION = 100000000;
 #endif
@@ -72,6 +75,7 @@ void* worker(void* param) {
             if(ta != tb) {
                 std::cerr << "[ERROR] " << ta << " != " << tb << std::endl;
             }
+            MODEL_ASSERT(ta == tb);
             rwLock.readUnlock();
         }
     }

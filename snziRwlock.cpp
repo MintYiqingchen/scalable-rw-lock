@@ -19,11 +19,17 @@ std::vector<int> Ids;
 
 union Node {
     char pad[CACHELINE];
-    std::atomic_int val; // (version:16, count:16)
+    std::atomic_int val{0}; // (version:16, count:16)
     struct {
-        std::atomic_int val; // (version: 16, count: 15, a: 1)
-        std::atomic_int indicator;
+        std::atomic_int val{0}; // (version: 16, count: 15, a: 1)
+        std::atomic_int indicator{0};
     } root;
+
+    Node() {
+        val = 0;
+        root.val = 0;
+        root.indicator = 0;
+    }
 };
 
 class SNZI {
@@ -48,7 +54,7 @@ public:
     }
     bool query() {
         auto i = nodes[0].root.indicator.load();
-        return (i & 0x80000000) > 0;
+        return (i & 0x80000000) != 0;
     }
 
 private:
@@ -117,22 +123,21 @@ private:
         short version, count;
         bool a;
         while(true) {
-            val = nodes[0].val.load();
+            val = nodes[0].root.val.load();
             root_decode(val, version, count, a);
             if(count == 0)
                 new_val = root_encode(version + 1, 1, true);
             else
                 new_val = root_encode(version, count + 1, a);
-            if(nodes[0].val.compare_exchange_strong(val, new_val)) {
+            if(nodes[0].root.val.compare_exchange_strong(val, new_val)) {
                 break;
             }
         }
         root_decode(new_val, version, count, a);
-        if(a) { // update indicator
+        if(a) { // update indicator (leftmost bit)
             do {
                 int i = nodes[0].root.indicator.load();
-                int newi = (i & 0x7FFFFFFF) + 1;
-                newi = (int)(((unsigned int)newi) | 0x80000000);
+                int newi = 0x80000000 + (((i & 0x7fffffff) + 1) & 0x7fffffff);
                 if(nodes[0].root.indicator.compare_exchange_strong(i, newi))
                     break;
             }while(1);
@@ -146,7 +151,7 @@ private:
         while (true) {
             val = nodes[0].root.val.load();
             root_decode(val, version, count, a);
-            if(nodes[0].val.compare_exchange_strong(val,
+            if(nodes[0].root.val.compare_exchange_strong(val,
                     root_encode(version, count - 1, false))) {
                 if(count >= 2) return;
                 while(true) {
@@ -154,7 +159,7 @@ private:
                     val = nodes[0].root.val.load();
                     if((short)(val >> 16) != version)
                         return; // new version occurs: don't overwrite
-                    int newi = (i & 0x7fffffff) + 1;
+                    int newi = 0x00000000 + (((i & 0x7fffffff) + 1) & 0x7fffffff);;
                     if(nodes[0].root.indicator.compare_exchange_strong(i, newi))
                         return;
                 }
@@ -163,7 +168,7 @@ private:
     }
     static void node_decode(int val, short& version, short& count) {
         version = (val >> 16);
-        count = val & 0x7FFF;
+        count = val & 0xFFFF; // sign!!!
     }
     static int node_encode(short version, short count) {
         int res = version;
@@ -173,7 +178,7 @@ private:
     static void root_decode(int val, short& version, short& count, bool& a) {
         version = (val >> 16);
         a = (val & 1) == 1;
-        count = ((val & 0xFFFF) >> 1) & 0x7fff;
+        count = ((val & 0xFFFF) >> 1) & 0x7fff; // root's count >= 0
     }
     static int root_encode(short version, short count, bool a) {
         int res = version, tmp = count;
@@ -244,7 +249,6 @@ void* worker(void* param) {
             rwLock.readUnlock(id);
         }
     }
-    return NULL;
 }
 
 void test(int threadN, int interval, double wPerc) {
@@ -281,7 +285,7 @@ int user_main(int argc, char **argv){
 int main(int argc, char** argv) {
 #endif
     if(argc < 3) {
-        std::cout << "usage: ./simpleRwlock [thread number] [write percent]" << std::endl;
+        std::cout << "usage: ./snziRwlock [thread number] [write percent]" << std::endl;
         exit(0);
     }
     rwLockptr = new SNZIRWLock();

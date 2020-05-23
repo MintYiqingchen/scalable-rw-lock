@@ -49,7 +49,6 @@ void* worker(void* param) {
             rwLock.readUnlock();
         }
     }
-    return NULL;
 }
 
 void test(int threadN, int interval, double wPerc) {

@@ -1,5 +1,5 @@
 # How to run
-## Run test case 1 with model-checker
+## Run test case with model-checker
 ```Bash
 > mkdir build
 > cd build
@@ -7,7 +7,8 @@
 # example:
 > cmake -DMODEL_CHK_PATH=/home/mintyi/codework/model-checker ..
 > make
-> ./barrier -v -m 3
+> ./simpleRwlock -v -m 1 -x 100 2 50
+> ./snziRwlock -v -m 1 -x 100 2 50
 ```
 ## Run test case 2 with pthread
 ```Bash
