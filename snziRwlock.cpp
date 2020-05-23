@@ -10,7 +10,7 @@
 constexpr int ITERATION = 10;
 #else
 #include <pthread.h>
-constexpr int ITERATION = 100000000;
+constexpr int ITERATION = 100000;
 #endif
 #define CACHELINE 64
 #define DEPTH 3

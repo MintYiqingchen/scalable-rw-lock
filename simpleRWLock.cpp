@@ -13,7 +13,7 @@ constexpr int ITERATION = 10;
 #else
 #define MODEL_ASSERT(x) x
 #include <pthread.h>
-constexpr int ITERATION = 100000000;
+constexpr int ITERATION = 100000;
 #endif
 int a = 0, b = 0, interval = 10000;
 std::vector<int> Ids;

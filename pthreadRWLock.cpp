@@ -2,7 +2,7 @@
 #include <chrono>
 #include <pthread.h>
 #include <vector>
-constexpr int ITERATION = 100000000;
+constexpr int ITERATION = 100000;
 int a = 0, b = 0, interval = 10000;
 std::vector<int> Ids;
 class SimpleRWLock {
